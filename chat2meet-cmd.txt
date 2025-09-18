@@ -1,0 +1,13 @@
+Invoke-RestMethod -Uri "http://localhost:8000/meeting-chat/send" -Method Post -Headers @{Authorization="Bearer $env:GRAPH_TOKEN";"Content-Type"="application/json"} -InFile "app/json_templates/meeting_chat_send.json"
+
+curl -Method Post "http://localhost:8000/meeting-chat/send" -Headers @{Authorization="Bearer $env:GRAPH_TOKEN";"Content-Type"="application/json"} -InFile "app/json_templates/meeting_chat_send.json"
+
+{
+  "join_url": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_OWI4YmNlMTUtYjc4Ni00MGI3LWIzYTQtMzI3NGY5MzUwOGZj@thread.v2/0?context=%7b%22Tid%22%3a%224bd7b06c-d824-44d5-92c7-a5efb29%22%7d",
+  "message": "Hello from Graph!"
+}
+
+curl -X POST http://localhost:8000/meeting-chat/send \
+  -H "Authorization: Bearer $GRAPH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @app/json_templates/meeting_chat_send.json
