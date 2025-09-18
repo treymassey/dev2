@@ -1,0 +1,49 @@
+# --- Put this next to your other auth helpers (no behavior change to the rest of the app) ---
+
+# These are the specific delegated scopes that the meeting-chat feature needs.
+# If your global DELEGATED_SCOPES already includes these, you can just use DELEGATED_SCOPES.
+MEETING_CHAT_SCOPES = [
+    "User.Read",
+    "Chat.ReadWrite",
+    "ChatMessage.Send",
+    "OnlineMeetings.Read",
+]
+
+def get_user_token_for(scopes: list[str] | None = None) -> str:
+    """
+    Return a delegated access token from MSAL cache using silent refresh.
+    Uses your existing 'public_app' and 'token_cache' objects.
+    If 'scopes' is None, falls back to your global DELEGATED_SCOPES.
+    """
+    use_scopes = scopes or DELEGATED_SCOPES
+    accounts = public_app.get_accounts()
+    if not accounts:
+        raise HTTPException(status_code=401, detail="No cached account. Run device auth first.")
+
+    result = public_app.acquire_token_silent(use_scopes, account=accounts[0])
+    if not result or "access_token" not in result:
+        raise HTTPException(status_code=401, detail="No cached delegated token. Run device auth for these scopes.")
+
+    # persist if cache changed
+    save_cache()
+    return result["access_token"]
+
+# Replace
+def _lookup_meeting_thread_id(join_url: str) -> str:
+    token = get_user_token_for(MEETING_CHAT_SCOPES)  # still delegated
+    headers = {"Authorization": f"Bearer {token}"}
+    literal = _escape_for_odata_literal(join_url)
+    url = f"{GRAPH}/me/onlineMeetings"
+    params = {"$filter": f"joinWebUrl eq '{literal}'"}
+    r = requests.get(url, headers=headers, params=params, timeout=30)
+    ...
+    return thread_id
+
+def _send_message_to_chat(chat_id: str, content: str) -> dict:
+    token = get_user_token_for(MEETING_CHAT_SCOPES)  # still delegated
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    body = {"body": {"contentType": "html", "content": content}}
+    url = f"{GRAPH}/chats/{chat_id}/messages"
+    r = requests.post(url, headers=headers, json=body, timeout=30)
+    ...
+    return r.json()
