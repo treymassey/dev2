@@ -1,0 +1,87 @@
+# Send to Meeting chat
+#curl -X POST http://localhost:8000/meeting-chat/send \
+#  -H "Authorization: Bearer $GRAPH_TOKEN" \
+#  -H "Content-Type: application/json" \
+#  -d '{"join_url":"<your Teams join URL>","message":"Hello from Graph!"}'
+
+
+
+# ==== IMPORTS (top of file; add only if not already present) ====
+from pydantic import BaseModel, HttpUrl
+from fastapi import Header, HTTPException
+import httpx
+
+# If you already defined GRAPH elsewhere, remove this line.
+GRAPH = "https://graph.microsoft.com/v1.0"
+
+
+# ==== MODELS (near your other BaseModel classes) ====
+class MeetingChatPayload(BaseModel):
+    join_url: HttpUrl
+    message: str
+
+
+# ==== HELPERS (near your other utility functions) ====
+async def _graph_get_meeting_thread_id(join_url: str, token: str) -> str:
+    """
+    Find the meeting by its JoinWebUrl and return chatInfo.threadId (chat id).
+    """
+    url = f"{GRAPH}/me/onlineMeetings"
+    params = {"$filter": f"joinWebUrl eq '{join_url}'"}
+    headers = {"Authorization": f"Bearer {token}"}
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(url, headers=headers, params=params)
+        if resp.status_code != 200:
+            raise HTTPException(status_code=resp.status_code,
+                                detail={"where": "lookup onlineMeetings", "body": resp.text})
+        data = resp.json()
+        values = data.get("value", [])
+        if not values:
+            raise HTTPException(status_code=404,
+                                detail="Meeting not found by joinUrl. Verify the exact link and user context.")
+        meeting = values[0]
+        chat_info = meeting.get("chatInfo") or {}
+        thread_id = chat_info.get("threadId")
+        if not thread_id:
+            raise HTTPException(status_code=404,
+                                detail="chatInfo.threadId not present on meeting.")
+        return thread_id
+
+
+async def _graph_send_message_to_chat(chat_id: str, content: str, token: str) -> dict:
+    """
+    Send a chatMessage to the given chat (meeting chat in this case).
+    """
+    url = f"{GRAPH}/chats/{chat_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+    body = {"body": {"contentType": "html", "content": content}}
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(url, headers=headers, json=body)
+        if resp.status_code not in (200, 201, 202):
+            raise HTTPException(status_code=resp.status_code,
+                                detail={"where": "post chat message", "body": resp.text})
+        return resp.json()
+
+
+# ==== ROUTE (place with your other @app.post/@app.get endpoints) ====
+@app.post("/meeting-chat/send")
+async def send_to_meeting_chat(
+    payload: MeetingChatPayload,
+    authorization: str | None = Header(default=None, convert_underscores=False),
+):
+    """
+    Headers: Authorization: Bearer <DELEGATED_USER_TOKEN>
+    Body: { "join_url": "<teams-join-url>", "message": "Hello meeting!" }
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing Authorization: Bearer <token> header.")
+    token = authorization.split(" ", 1)[1].strip()
+
+    chat_id = await _graph_get_meeting_thread_id(payload.join_url, token)
+    result = await _graph_send_message_to_chat(chat_id, payload.message, token)
+    return {"ok": True, "chat_id": chat_id, "message_id": result.get("id")}
