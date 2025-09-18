@@ -1,0 +1,14 @@
+@app.post("/meeting-chat/send")
+def send_to_meeting_chat(payload: MeetingChatPayload):
+    """
+    Send a chat message into a Teams meeting chat.
+    Token is pulled silently from MSAL cache (delegated scopes).
+    """
+    chat_id = _lookup_meeting_thread_id(payload.join_url)  # uses get_user_token_for()
+    result = _send_message_to_chat(chat_id, payload.message)  # uses get_user_token_for()
+    return {"ok": True, "chat_id": chat_id, "message_id": result.get("id")}
+
+
+# no header
+Invoke-RestMethod -Uri "http://localhost:8080/meeting-chat/send" -Method Post `
+  -ContentType "application/json" -InFile "app/json_templates/meeting_chat_send.json"
