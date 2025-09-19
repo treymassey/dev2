@@ -1,0 +1,69 @@
+@app.post("/chats/send")
+def send_chat_to_user(body: ChatToUserBody):
+    # body: { "to_upn": "...", "message": "..." }
+    print("DEBUG received body:", body)
+
+    # If you already have a helper that returns the user's id, keep it:
+    # target_id = get_user_id_by_upn_delegated(body.to_upn)
+
+    # Or: you can bind directly by UPN with users('<upn>') and skip the lookup:
+    target_bind = f"{GRAPH}/users('{body.to_upn}')"
+
+    chat_payload = {
+        "chatType": "oneOnOne",
+        "members": [
+            {
+                "@odata.type": "#microsoft.graph.aadUserConversationMember",
+                "roles": ["owner"],
+                # MUST be users('<id or upn>') with parentheses + single quotes
+                "user@odata.bind": target_bind
+            },
+            {
+                "@odata.type": "#microsoft.graph.aadUserConversationMember",
+                "roles": ["owner"],
+                # 'me' must also be wrapped as users('me')
+                "user@odata.bind": f"{GRAPH}/users('me')"
+            }
+        ]
+    }
+
+    # Use raw JSON to preserve the @odata.bind keys
+    resp = requests.post(
+        GRAPH + "/chats",
+        headers={
+            "Authorization": f"Bearer {get_user_token_for()}",
+            "Content-Type": "application/json",
+        },
+        data=json.dumps(chat_payload),
+        timeout=60,
+    )
+    if not resp.ok:
+        raise HTTPException(status_code=resp.status_code, detail=resp.json())
+
+    chat = resp.json()
+    chat_id = chat.get("id")
+    if not chat_id:
+        raise HTTPException(status_code=500, detail={"where": "create chat", "response": chat})
+
+    msg_payload = {
+        "body": {
+            "contentType": "html",
+            "content": body.message
+        }
+    }
+    resp2 = requests.post(
+        GRAPH + f"/chats/{chat_id}/messages",
+        headers={
+            "Authorization": f"Bearer {get_user_token_for()}",
+            "Content-Type": "application/json",
+        },
+        data=json.dumps(msg_payload),
+        timeout=60,
+    )
+    if not resp2.ok:
+        raise HTTPException(status_code=resp2.status_code, detail=resp2.json())
+
+    return {"ok": True, "chat_id": chat_id, "message_id": resp2.json().get("id")}
+
+# ==========send
+Invoke-RestMethod -Uri "http://localhost:8080/chats/send" -Method Post -ContentType "application/json" -InFile "app/json_templates/chat_send.json"
