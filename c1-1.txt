@@ -1,0 +1,72 @@
+@app.post("/chats/send")
+def send_chat_to_user(body: ChatToUserBody):
+    """
+    Create (or reuse) a 1:1 chat with the target UPN and send a message.
+    Body JSON example:
+      { "to_upn": "someone@contoso.com", "message": "Hello!" }
+    """
+    # 1) Acquire delegated token (silent from MSAL cache)
+    token = get_user_token_for()
+
+    # 2) Resolve *caller* (me) user id — Graph requires the caller to be in members
+    resp_me = requests.get(
+        GRAPH + "/me?$select=id",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30,
+    )
+    if not resp_me.ok:
+        raise HTTPException(status_code=resp_me.status_code, detail=resp_me.json())
+    my_id = resp_me.json().get("id")
+    if not my_id:
+        raise HTTPException(status_code=500, detail={"where": "resolve me", "error": "No 'id' on /me response"})
+
+    # 3) Build create-chat payload with correct @odata.bind formats
+    chat_payload = {
+        "chatType": "oneOnOne",
+        "members": [
+            {
+                "@odata.type": "#microsoft.graph.aadUserConversationMember",
+                "roles": ["owner"],
+                "user@odata.bind": f"{GRAPH}/users('{body.to_upn}')",  # target by UPN
+            },
+            {
+                "@odata.type": "#microsoft.graph.aadUserConversationMember",
+                "roles": ["owner"],
+                "user@odata.bind": f"{GRAPH}/users('{my_id}')",       # caller by GUID
+            },
+        ],
+    }
+
+    # 4) Create the 1:1 chat (Graph will return the existing one if it already exists)
+    resp_chat = requests.post(
+        GRAPH + "/chats",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        data=json.dumps(chat_payload),  # use data (raw JSON) to preserve @odata.bind
+        timeout=60,
+    )
+    if not resp_chat.ok:
+        # Bubble up Graph error so you can see the exact complaint
+        raise HTTPException(status_code=resp_chat.status_code, detail=resp_chat.json())
+
+    chat = resp_chat.json()
+    chat_id = chat.get("id")
+    if not chat_id:
+        raise HTTPException(status_code=500, detail={"where": "create chat", "response": chat})
+
+    # 5) Send the message into that chat
+    msg_payload = {
+        "body": {
+            "contentType": "html",
+            "content": body.message,
+        }
+    }
+    resp_msg = requests.post(
+        GRAPH + f"/chats/{chat_id}/messages",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        data=json.dumps(msg_payload),
+        timeout=60,
+    )
+    if not resp_msg.ok:
+        raise HTTPException(status_code=resp_msg.status_code, detail=resp_msg.json())
+
+    return {"ok": True, "chat_id": chat_id, "message_id": resp_msg.json().get("id")}
