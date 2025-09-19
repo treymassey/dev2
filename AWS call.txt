@@ -1,0 +1,35 @@
+import os, requests, json
+
+CF_ID = os.environ["CF_ACCESS_CLIENT_ID"]
+CF_SECRET = os.environ["CF_ACCESS_CLIENT_SECRET"]
+API_URL = "https://api.yourdomain.com/meeting-chat/send"
+
+body = {
+    "join_url": "<teams join url>",
+    "message": "Hello from AWS"
+}
+
+r = requests.post(
+    API_URL,
+    headers={
+        "CF-Access-Client-Id": CF_ID,
+        "CF-Access-Client-Secret": CF_SECRET,
+        "Content-Type": "application/json"
+    },
+    data=json.dumps(body),
+    timeout=30
+)
+r.raise_for_status()
+print(r.json())
+
+
+#tweaks 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://api.yourdomain.com", "https://*.yourdomain.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
