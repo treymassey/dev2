@@ -1,0 +1,114 @@
+# --- API key protection 
+import os
+from fastapi import Depends, Header, HTTPException
+
+API_KEY = os.getenv("API_KEY", "")
+
+def require_api_key(x_api_key: str = Header(..., alias="x-api-key")) -> None:
+    if not API_KEY:
+        raise HTTPException(status_code=500, detail="Server missing API_KEY env var")
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+# Example: protect only the public endpoints you want AWS to call
+@app.post("/meeting-chat/send", dependencies=[Depends(require_api_key)])
+def send_to_meeting_chat(payload: MeetingChatPayload):
+    chat_id = _lookup_meeting_thread_id(payload.join_url)
+    result = _send_message_to_chat(chat_id, payload.message)
+    return {"ok": True, "chat_id": chat_id, "message_id": result.get("id")}
+
+# ==================
+
+services:
+  graph-app-only:
+    build:
+      context: .
+    image: graph-app-only:latest
+    env_file: .env
+    environment:
+      - API_KEY=${API_KEY}
+      - CACHE_PATH=/app/token-cache.json
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+# ===============
+#envAPI_KEY=supersecret123
+
+# ===========
+
+#Test  
+Invoke-RestMethod -Uri "https://crew-tender-six-operator.trycloudflare.com/meeting-chat/send" `
+  -Method Post `
+  -Headers @{ "x-api-key" = "supersecret123" } `
+  -ContentType "application/json" `
+  -InFile "app/json_templates/meeting_chat_send.json"
+
+# Curl
+
+curl -X POST "https://crew-tender-six-operator.trycloudflare.com/meeting-chat/send" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: supersecret123" \
+  -d @app/json_templates/meeting_chat_send.json
+
+# payload
+
+{
+  "join_url": "Https://URL",
+  "message": "Hello from Graph!"
+}
+
+# AWS Call
+# Lambda
+
+import os, json, urllib.request
+
+API_URL = os.environ["API_URL"]  # e.g., https://crew-tender-six-operator.trycloudflare.com/meeting-chat/send
+API_KEY = os.environ["API_KEY"]
+
+def handler(event, context):
+    body = {
+        "join_url": event["join_url"],
+        "message": event["message"]
+    }
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        API_URL,
+        data=data,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": API_KEY
+        }
+    )
+    with urllib.request.urlopen(req, timeout=30) as r:
+        resp_body = r.read().decode("utf-8")
+        return {
+            "statusCode": r.status,
+            "body": resp_body
+        }
+
+# HTTP Call
+{
+  "Type": "Task",
+  "Resource": "arn:aws:states:::http:invoke",
+  "Parameters": {
+    "Method": "POST",
+    "Url": "https://crew-tender-six-operator.trycloudflare.com/meeting-chat/send",
+    "Headers": {
+      "Content-Type": "application/json",
+      "x-api-key.$": "$.api_key"               // pass in from state input or Secrets Manager reference
+    },
+    "Body": {
+      "join_url.$": "$.join_url",
+      "message.$": "$.message"
+    }
+  },
+  "End": true
+}
+
+# debug
+
+docker exec -it graph-app-only-1 sh -lc 'echo $API_KEY'
