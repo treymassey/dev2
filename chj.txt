@@ -6,3 +6,43 @@ Invoke-RestMethod -Uri "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.d
   -Headers @{ "x-api-key" = "demokey123" } `
   -ContentType "application/json" `
   -InFile "app/json_templates/meeting_chat_send.json"
+
+
+# from the repo root
+$uri = "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.dev/meeting-chat/send"
+$headers = @{ "x-api-key" = "demokey123" }   # exact header your app expects
+$body = Get-Content -Raw -Path "app/json_templates/meeting_chat_send.json"
+
+# If your cert is fussy in Codespaces, temporarily skip validation
+add-type @"
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
+public static class TrustAllCertsPolicy {
+    public static bool Validator(object s, X509Certificate c, X509Chain ch, SslPolicyErrors e) { return true; }
+}
+"@
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = [System.Net.Security.RemoteCertificateValidationCallback]::new([TrustAllCertsPolicy]::Validator)
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri $uri `
+  -Headers $headers `
+  -ContentType "application/json" `
+  -Body $body `
+  -Verbose
+
+
+
+curl -X POST "$uri" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: demokey123" \
+  --data-binary @app/json_templates/meeting_chat_send.json -v
+
+
+from fastapi import Header, HTTPException
+import os
+
+API_KEY = os.getenv("API_KEY", "demokey123")
+def verify_api_key(x_api_key: str = Header(..., alias="x-api-key")):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
