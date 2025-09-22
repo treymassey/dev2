@@ -41,3 +41,9 @@ curl -X POST "https://<your-codespaces-id>-8080.app.github.dev/meeting-chat/send
   -H "Content-Type: application/json" \
   -H "x-api-key: key" \
   -d @app/json_templates/meeting_chat_send.json
+
+
+curl --ssl-no-revoke -X POST "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.dev/meeting-chat/send" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: demokey123" \
+  -d "{\"join_url\":\"<PASTE-YOUR-TEAMS-JOIN-URL>\",\"message\":\"<YOUR-MESSAGE-HERE>\"}"
