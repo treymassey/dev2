@@ -1,1 +1,8 @@
 curl --ssl-no-revoke "$ApiBase/__diag/api-key" -H "x-api-key: demokey123" -v
+
+
+Invoke-RestMethod -Uri "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.dev/meeting-chat/send" `
+  -Method Post `
+  -Headers @{ "x-api-key" = "demokey123" } `
+  -ContentType "application/json" `
+  -InFile "app/json_templates/meeting_chat_send.json"
