@@ -47,3 +47,11 @@ curl --ssl-no-revoke -X POST "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.gi
   -H "Content-Type: application/json" \
   -H "x-api-key: demokey123" \
   -d "{\"join_url\":\"<PASTE-YOUR-TEAMS-JOIN-URL>\",\"message\":\"<YOUR-MESSAGE-HERE>\"}"
+
+
+curl --ssl-no-revoke -X POST "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.dev/meeting-chat/send" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: demokey123" \
+  -d "{\"join_url\":\"https://teams.microsoft.com/l/meetup-join/19%3ameeting_...@thread.v2/0?context=%7B%22Tid%22%3A%224bd7b06c-d824-44d5-92c7-a5efb29f1d7%22%7D\",\"message\":\"Hello from direct curl\"}"
+
+
