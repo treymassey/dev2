@@ -1,0 +1,43 @@
+from fastapi import Request
+from hmac import compare_digest
+
+@app.get("/__diag/api-key")
+def diag_api_key(request: Request, x_api_key: str | None = Header(default=None, alias="x-api-key")):
+    # What the app has in env and what your request header contained:
+    return {
+        "env_API_KEY": repr(os.getenv("API_KEY", "")),
+        "header_x_api_key": repr(x_api_key),
+        "equal_after_strip": (
+            (x_api_key or "").strip() == os.getenv("API_KEY", "").strip()
+        )
+    }
+
+#
+Invoke-RestMethod "https://<your-codespaces-id>-8080.app.github.dev/__diag/api-key" `
+  -Headers @{ "x-api-key" = "key" }
+
+#
+API_KEY = os.getenv("API_KEY", "")
+
+def require_api_key(x_api_key: str = Header(..., alias="x-api-key")) -> None:
+    expected = (API_KEY or "").strip()
+    provided = (x_api_key or "").strip()
+    # Optional: debug log so you can see mismatches in container logs
+    print(f"DEBUG api-key check: expected={repr(expected)} provided={repr(provided)}")
+    if not expected:
+        raise HTTPException(status_code=500, detail="Server missing API_KEY env var")
+    if not compare_digest(provided, expected):
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+#
+Invoke-RestMethod -Uri "https://<your-codespaces-id>-8080.app.github.dev/meeting-chat/send" `
+  -Method Post `
+  -Headers @{ "x-api-key" = "key"; "Content-Type" = "application/json" } `
+  -InFile "app/json_templates/meeting_chat_send.json"
+
+#
+curl -X POST "https://<your-codespaces-id>-8080.app.github.dev/meeting-chat/send" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: key" \
+  -d @app/json_templates/meeting_chat_send.json
