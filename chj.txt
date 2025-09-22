@@ -1,16 +1,16 @@
-curl --ssl-no-revoke "$ApiBase/__diag/api-key" -H "x-api-key: demokey123" -v
+curl --ssl-no-revoke "$ApiBase/__diag/api-key" -H "x-api-key: key3333" -v
 
 
 Invoke-RestMethod -Uri "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.dev/meeting-chat/send" `
   -Method Post `
-  -Headers @{ "x-api-key" = "demokey123" } `
+  -Headers @{ "x-api-key" = "key3333" } `
   -ContentType "application/json" `
   -InFile "app/json_templates/meeting_chat_send.json"
 
 
 # from the repo root
 $uri = "https://ideal-acorn-5gpx56r66rmc4c4ggp-8080.app.github.dev/meeting-chat/send"
-$headers = @{ "x-api-key" = "demokey123" }   # exact header your app expects
+$headers = @{ "x-api-key" = "key3333" }   # exact header your app expects
 $body = Get-Content -Raw -Path "app/json_templates/meeting_chat_send.json"
 
 # If your cert is fussy in Codespaces, temporarily skip validation
@@ -35,14 +35,14 @@ Invoke-RestMethod `
 
 curl -X POST "$uri" \
   -H "Content-Type: application/json" \
-  -H "x-api-key: demokey123" \
+  -H "x-api-key: key3333" \
   --data-binary @app/json_templates/meeting_chat_send.json -v
 
 
 from fastapi import Header, HTTPException
 import os
 
-API_KEY = os.getenv("API_KEY", "demokey123")
+API_KEY = os.getenv("API_KEY", "key3333")
 def verify_api_key(x_api_key: str = Header(..., alias="x-api-key")):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
